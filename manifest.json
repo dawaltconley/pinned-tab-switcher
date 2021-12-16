@@ -1,0 +1,18 @@
+{
+  "manifest_version": 2,
+  "name": "Pinned Tab Switcher",
+  "version": "0.1",
+  "description": "Prioritizes switching to pinned tabs.",
+
+  "background": {
+    "scripts": ["background.js"]
+  },
+
+  "permissions": [
+    "tabs",
+    "webNavigation",
+    "webRequest",
+    "webRequestBlocking",
+    "<all_urls>"
+  ]
+}

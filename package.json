@@ -1,0 +1,15 @@
+{
+  "name": "pinned-tab-switcher",
+  "version": "0.1.0",
+  "description": "Prioritizes switching to pinned tabs.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^7.32.0",
+    "eslint-plugin-mozilla": "^2.11.1"
+  }
+}
