@@ -1,71 +1,37 @@
 let { tabs, windows, webRequest } = browser;
 
-let getDomainPath = url => {
-    let { origin='', pathname='' } = new URL(url);
-    return origin + pathname;
-};
+let pinnedTabId;
+const pinnedDomains = [ '*://calendar.google.com/calendar/u/0/r*' ];
 
-async function pinnedTabListener(pinnedMap, details) {
-    console.dir({details});
-    let domainPath = getDomainPath(details.url);
-    let match = pinnedMap[domainPath];
-    console.log({match});
-    if (!match || match.id === details.tabId)
-        return {};
-
-    let newWindow = windows.update(match.windowId, { focused: true });
-    let newTab = tabs.update(match.id, { active: true });
-    let lastTab = tabs.get(details.tabId).then(({url, id}) => {
-        if (url === 'about:newtab')
-            return tabs.remove(id);
-    });
-
-    await Promise.all([ newWindow, newTab, lastTab ]);
-
-    console.log('UPDATED');
-    return { cancel: true };
+async function newPinnedTab(details) {
+    pinnedTabId = details.tabId;
+    await tabs.update(details.tabId, { pinned: true });
+    return {};
 }
 
-tabs.query({ pinned: true, }).then(pinned => {
-    let pinnedMap = {};
-    let filterPaths = [];
+webRequest.onBeforeRequest.addListener(async details => {
+    if (pinnedTabId === details.tabId)
+        return {};
+    if (!pinnedTabId) {
+        return newPinnedTab(details);
+    } else {
+        let pinned = await tabs.get(pinnedTabId).catch(() => null);
+        if (!pinned)
+            return newPinnedTab(details);
+        let updateProperties = { active: true };
+        if (details.url !== pinned.url)
+            updateProperties.url = details.url;
 
-    const addTab = tab => {
-        let domainPath = getDomainPath(tab.url);
-        pinnedMap[domainPath] = tab;
-        filterPaths.push(domainPath);
-        filterPaths.push(domainPath + '?*');
-        updateListener(pinnedMap, filterPaths);
-    };
+        let newWindow = windows.update(pinned.windowId, { focused: true });
+        let newTab = tabs.update(pinned.id, updateProperties);
+        let lastTab = tabs.get(details.tabId).then(({url, id}) => {
+            if (url === 'about:newtab')
+                return tabs.remove(id);
+        });
+        await Promise.all([ newWindow, newTab, lastTab ]);
 
-    const rmTab = tab => {
-        let domainPath = getDomainPath(tab.url);
-        delete pinnedMap[domainPath];
-        filterPaths = filterPaths.filter(p => p !== domainPath && p !== domainPath + '?*');
-        updateListener(pinnedMap, filterPaths);
-    };
-
-    const updateListener = (pinned, filters) => {
-        webRequest.onBeforeRequest.removeListener(pinnedTabListener);
-        webRequest.onBeforeRequest.addListener(pinnedTabListener.bind(null, pinned), {
-            urls: filters
-        }, ['blocking']);
-    };
-
-    for (let tab of pinned) {
-        let domainPath = getDomainPath(tab.url);
-        if (!pinnedMap[domainPath])
-            addTab(tab);
+        return { cancel: true };
     }
-
-    tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-        if (tab.pinned === true)
-            addTab(tab);
-        else
-            rmTab(tab);
-    }, { properties: ['pinned'] });
-
-    webRequest.onBeforeRequest.addListener(pinnedTabListener.bind(null, pinnedMap), {
-        urls: filterPaths // TODO: filter pinned tab ids
-    }, ['blocking']);
-});
+}, {
+    urls: pinnedDomains,
+}, [ 'blocking' ]);
